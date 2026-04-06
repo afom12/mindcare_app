@@ -27,6 +27,36 @@ class ApiClient {
     return headers;
   }
 
+  Future<Map<String, dynamic>> getJson(
+    String path, {
+    bool auth = false,
+    Map<String, String>? queryParameters,
+  }) async {
+    final client = http.Client();
+    try {
+      var uri = _uri(path);
+      if (queryParameters != null && queryParameters.isNotEmpty) {
+        uri = uri.replace(queryParameters: queryParameters);
+      }
+      final response = await client
+          .get(
+            uri,
+            headers: await _headers(auth: auth),
+          )
+          .timeout(ApiConstants.receiveTimeout);
+
+      return _decode(response);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        'We could not reach the server. Check your connection and that the API is running.',
+      );
+    } finally {
+      client.close();
+    }
+  }
+
   Future<Map<String, dynamic>> postJson(
     String path,
     Map<String, dynamic> body, {

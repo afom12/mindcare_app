@@ -4,7 +4,11 @@ import 'package:provider/provider.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/chat_provider.dart';
+import '../../providers/privacy_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../services/local_notification_service.dart';
+import '../../widgets/fade_in.dart';
 import '../../widgets/gradient_background.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -14,6 +18,7 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final theme = context.watch<ThemeProvider>();
+    final privacy = context.watch<PrivacyProvider>();
     final user = auth.user;
 
     return Scaffold(
@@ -22,11 +27,13 @@ class ProfileScreen extends StatelessWidget {
         child: ListView(
           children: [
             const SizedBox(height: 8),
-            Text(
-              'Profile',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+            FadeIn(
+              child: Text(
+                'Profile',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -88,7 +95,6 @@ class ProfileScreen extends StatelessWidget {
               subtitle: 'Dark mode for low-light comfort',
               trailing: Switch.adaptive(
                 value: theme.mode == ThemeMode.dark,
-                activeColor: AppColors.teal,
                 onChanged: (v) {
                   theme.setMode(v ? ThemeMode.dark : ThemeMode.light);
                 },
@@ -96,26 +102,79 @@ class ProfileScreen extends StatelessWidget {
             ),
             _SettingsTile(
               icon: Icons.notifications_none_rounded,
-              title: 'Notifications',
-              subtitle: 'Coming soon — gentle reminders',
+              title: 'Daily mood reminder',
+              subtitle: 'Gentle local notification (9:00)',
+              trailing: Switch.adaptive(
+                value: privacy.dailyReminderEnabled,
+                onChanged: (v) async {
+                  await privacy.setDailyReminderEnabled(v);
+                  if (!context.mounted) return;
+                  final notif = context.read<LocalNotificationService>();
+                  if (v) {
+                    await notif.scheduleDailyMoodReminder();
+                  } else {
+                    await notif.cancelDailyReminder();
+                  }
+                },
+              ),
+            ),
+            _SettingsTile(
+              icon: Icons.visibility_off_outlined,
+              title: 'Hide chat previews',
+              subtitle: 'Home hides your last message snippet',
+              trailing: Switch.adaptive(
+                value: privacy.hideChatPreviews,
+                onChanged: (v) => privacy.setHidePreviews(v),
+              ),
+            ),
+            _SettingsTile(
+              icon: Icons.pin_outlined,
+              title: privacy.hasPin ? 'Change PIN' : 'Set app PIN',
+              subtitle: 'Extra privacy when you return to the app',
               trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Notifications will arrive in a future update.'),
+              onTap: () => _showPinSheet(context, privacy),
+            ),
+            _SettingsTile(
+              icon: Icons.delete_sweep_outlined,
+              title: 'Clear chat history',
+              subtitle: 'Removes cached messages on this device',
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () async {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Clear chat history?'),
+                    content: const Text(
+                      'This removes locally saved messages and starts a fresh warm greeting. It does not delete your account.',
+                    ),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Clear'),
+                      ),
+                    ],
                   ),
                 );
+                if (ok == true && context.mounted) {
+                  await context.read<ChatProvider>().clearConversation();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Chat history cleared gently.')),
+                    );
+                  }
+                }
               },
             ),
             _SettingsTile(
               icon: Icons.shield_outlined,
               title: 'Privacy & data',
-              subtitle: 'Placeholder — export & policies',
+              subtitle: 'Mood and chat cache stay on-device',
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Privacy controls will be available here soon.'),
+                    content: Text('Export and full policies can ship in a later release.'),
                   ),
                 );
               },
@@ -141,6 +200,82 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _showPinSheet(BuildContext context, PrivacyProvider privacy) async {
+  final c1 = TextEditingController();
+  final c2 = TextEditingController();
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) {
+      return Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          bottom: MediaQuery.viewInsetsOf(ctx).bottom + 20,
+          top: 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              privacy.hasPin ? 'Update PIN' : 'Create PIN',
+              style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: c1,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'PIN (4–8 digits)'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: c2,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Confirm PIN'),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () async {
+                final a = c1.text.trim();
+                final b = c2.text.trim();
+                if (a.length < 4 || a != b) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('PINs should match and be at least 4 digits.')),
+                  );
+                  return;
+                }
+                await privacy.setNewPin(a);
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('PIN saved. We will ask when you return.')),
+                  );
+                }
+              },
+              child: const Text('Save PIN'),
+            ),
+            if (privacy.hasPin) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () async {
+                  await privacy.removePin();
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                child: const Text('Remove PIN'),
+              ),
+            ],
+          ],
+        ),
+      );
+    },
+  );
+  c1.dispose();
+  c2.dispose();
 }
 
 class _SettingsTile extends StatelessWidget {

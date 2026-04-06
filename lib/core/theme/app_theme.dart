@@ -34,6 +34,13 @@ class AppTheme {
       colorScheme: base,
       scaffoldBackgroundColor: AppColors.mist,
       fontFamily: 'Roboto',
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+        },
+      ),
       appBarTheme: const AppBarTheme(
         centerTitle: true,
         elevation: 0,
@@ -103,6 +110,13 @@ class AppTheme {
       colorScheme: base,
       scaffoldBackgroundColor: bg,
       fontFamily: 'Roboto',
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+        },
+      ),
       appBarTheme: const AppBarTheme(
         centerTitle: true,
         elevation: 0,

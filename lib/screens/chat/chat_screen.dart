@@ -5,8 +5,14 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/main_shell_controller.dart';
+import '../../providers/therapist_provider.dart';
+import '../../services/crisis_detector.dart';
 import '../../widgets/chat_bubble.dart';
+import '../../widgets/crisis_support_sheet.dart';
+import '../../widgets/crisis_therapist_dialog.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/fade_in.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -23,14 +29,14 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final auth = context.read<AuthProvider>();
       if (!auth.isAuthenticated) {
         Navigator.pushReplacementNamed(context, AppRoutes.login);
         return;
       }
       final chat = context.read<ChatProvider>();
-      chat.addWelcomeIfEmpty();
+      await chat.loadPersisted();
       _chat = chat;
       chat.addListener(_onChatUpdate);
       _scrollToBottom();
@@ -60,6 +66,22 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _send() async {
     final text = _input.text;
+    if (text.trim().isEmpty) return;
+    if (CrisisDetector.shouldFlag(text)) {
+      final wantTherapist = await showCrisisTherapistDialog(context);
+      if (!mounted) return;
+      if (wantTherapist == true) {
+        await context.read<TherapistProvider>().requestTherapistSupport();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('We shared your request with the care team.')),
+        );
+        context.read<MainShellController>().goTherapist();
+      } else {
+        await showCrisisSupportSheet(context);
+      }
+      return;
+    }
     _input.clear();
     await context.read<ChatProvider>().send(text);
     _scrollToBottom();
@@ -76,8 +98,8 @@ class _ChatScreenState extends State<ChatScreen> {
         actions: [
           IconButton(
             tooltip: 'Clear conversation',
-            onPressed: () {
-              chat.clearConversation();
+            onPressed: () async {
+              await chat.clearConversation();
               _scrollToBottom();
             },
             icon: const Icon(Icons.refresh_rounded),
@@ -91,8 +113,10 @@ class _ChatScreenState extends State<ChatScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: messages.isEmpty
                   ? const EmptyState(
-                      title: 'No messages yet',
-                      subtitle: 'When you are ready, type a thought below.',
+                      title: 'Your space is ready',
+                      subtitle:
+                          'When you are ready, share a thought below. There is no rush and no wrong way to begin.',
+                      icon: Icons.volunteer_activism_rounded,
                     )
                   : ListView.separated(
                       controller: _scroll,
@@ -101,7 +125,10 @@ class _ChatScreenState extends State<ChatScreen> {
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, i) {
                         final m = messages[i];
-                        return ChatBubble(message: m);
+                        return FadeIn(
+                          delay: Duration(milliseconds: 30 * (i.clamp(0, 8))),
+                          child: ChatBubble(message: m),
+                        );
                       },
                     ),
             ),
@@ -159,7 +186,7 @@ class _InputBar extends StatelessWidget {
                 textInputAction: TextInputAction.newline,
                 keyboardType: TextInputType.multiline,
                 decoration: const InputDecoration(
-                  hintText: 'Write what feels true for you…',
+                  hintText: 'Write gently — this space is yours…',
                   border: InputBorder.none,
                 ),
               ),

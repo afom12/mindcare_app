@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/mood_provider.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/fade_in.dart';
 import '../../widgets/gradient_background.dart';
+import '../../widgets/mood_week_chart.dart';
 import '../../widgets/primary_button.dart';
 
 class _MoodOption {
@@ -88,6 +90,36 @@ class _MoodScreenState extends State<MoodScreen> {
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.inkMuted),
               ),
             ),
+            if (!mood.isLoading && mood.entries.isNotEmpty) ...[
+              const SliverToBoxAdapter(child: SizedBox(height: 18)),
+              SliverToBoxAdapter(
+                child: FadeIn(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: AppColors.line.withValues(alpha: 0.6)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Last 7 days',
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Your check-in rhythm (stored on this device)',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.inkMuted),
+                        ),
+                        MoodWeekChart(entries: mood.entries),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const SliverToBoxAdapter(child: SizedBox(height: 18)),
             SliverToBoxAdapter(
               child: Wrap(
@@ -142,8 +174,9 @@ class _MoodScreenState extends State<MoodScreen> {
             else if (mood.entries.isEmpty)
               const SliverToBoxAdapter(
                 child: EmptyState(
-                  title: 'No entries yet',
-                  subtitle: 'When you log how you feel, a gentle history will appear here.',
+                  title: 'Your story starts with one honest tap',
+                  subtitle:
+                      'There is no grade here — only gentle awareness. Your next check-in will bloom into a chart.',
                   icon: Icons.auto_awesome_rounded,
                 ),
               )

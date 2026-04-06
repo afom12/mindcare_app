@@ -8,11 +8,15 @@ class EmptyState extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.icon = Icons.spa_rounded,
+    this.actionLabel,
+    this.onAction,
   });
 
   final String title;
   final String? subtitle;
   final IconData icon;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +45,13 @@ class EmptyState extends StatelessWidget {
                       color: AppColors.inkMuted,
                       height: 1.4,
                     ),
+              ),
+            ],
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 20),
+              FilledButton.tonal(
+                onPressed: onAction,
+                child: Text(actionLabel!),
               ),
             ],
           ],
