@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/constants/app_links.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/privacy_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../services/api_exception.dart';
 import '../../services/local_notification_service.dart';
 import '../../widgets/fade_in.dart';
 import '../../widgets/gradient_background.dart';
@@ -135,6 +138,27 @@ class ProfileScreen extends StatelessWidget {
               onTap: () => _showPinSheet(context, privacy),
             ),
             _SettingsTile(
+              icon: Icons.password_rounded,
+              title: 'Change password',
+              subtitle: 'Update your account password',
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => _showChangePasswordSheet(context, auth),
+            ),
+            _SettingsTile(
+              icon: Icons.menu_book_outlined,
+              title: 'Resources',
+              subtitle: 'Articles, tools, and crisis lines from your program',
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.pushNamed(context, AppRoutes.resources),
+            ),
+            _SettingsTile(
+              icon: Icons.event_available_outlined,
+              title: 'Book a session',
+              subtitle: 'Request time with a listed therapist',
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.pushNamed(context, AppRoutes.bookings),
+            ),
+            _SettingsTile(
               icon: Icons.delete_sweep_outlined,
               title: 'Clear chat history',
               subtitle: 'Removes cached messages on this device',
@@ -168,23 +192,32 @@ class ProfileScreen extends StatelessWidget {
             ),
             _SettingsTile(
               icon: Icons.shield_outlined,
-              title: 'Privacy & data',
-              subtitle: 'Mood and chat cache stay on-device',
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Export and full policies can ship in a later release.'),
+              title: 'Privacy policy',
+              subtitle: 'Opens in your browser',
+              trailing: const Icon(Icons.open_in_new_rounded),
+              onTap: () => _openPolicyUrl(
+                    context,
+                    AppLinks.privacyPolicyUrl,
+                    'Set PRIVACY_POLICY_URL when building, e.g. --dart-define=PRIVACY_POLICY_URL=https://…',
                   ),
-                );
-              },
+            ),
+            _SettingsTile(
+              icon: Icons.description_outlined,
+              title: 'Terms of service',
+              subtitle: 'Opens in your browser',
+              trailing: const Icon(Icons.open_in_new_rounded),
+              onTap: () => _openPolicyUrl(
+                    context,
+                    AppLinks.termsOfServiceUrl,
+                    'Set TERMS_OF_SERVICE_URL when building, e.g. --dart-define=TERMS_OF_SERVICE_URL=https://…',
+                  ),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: () async {
                 await auth.logout();
                 if (!context.mounted) return;
-                Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (r) => false);
+                Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
               },
               icon: const Icon(Icons.logout_rounded),
               label: const Text('Log out'),
@@ -200,6 +233,114 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _openPolicyUrl(BuildContext context, String url, String emptyHint) async {
+  if (url.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(emptyHint)));
+    return;
+  }
+  final u = Uri.tryParse(url);
+  if (u == null || !u.hasScheme) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('That link could not be opened.')),
+    );
+    return;
+  }
+  final ok = await launchUrl(u, mode: LaunchMode.externalApplication);
+  if (!context.mounted) return;
+  if (!ok) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Could not open link.')),
+    );
+  }
+}
+
+Future<void> _showChangePasswordSheet(BuildContext context, AuthProvider auth) async {
+  final current = TextEditingController();
+  final next = TextEditingController();
+  final confirm = TextEditingController();
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) {
+      return Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          bottom: MediaQuery.viewInsetsOf(ctx).bottom + 20,
+          top: 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Change password',
+              style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: current,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Current password'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: next,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'New password'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: confirm,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Confirm new password'),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () async {
+                if (next.text != confirm.text) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('New passwords do not match.')),
+                  );
+                  return;
+                }
+                if (next.text.length < 8) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Use at least 8 characters.')),
+                  );
+                  return;
+                }
+                try {
+                  await auth.changePassword(
+                    currentPassword: current.text,
+                    newPassword: next.text,
+                  );
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Password updated.')),
+                    );
+                  }
+                } on ApiException catch (e) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(content: Text(e.message)),
+                    );
+                  }
+                }
+              },
+              child: const Text('Update password'),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+  current.dispose();
+  next.dispose();
+  confirm.dispose();
 }
 
 Future<void> _showPinSheet(BuildContext context, PrivacyProvider privacy) async {

@@ -21,8 +21,14 @@ class _TherapistHubScreenState extends State<TherapistHubScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TherapistProvider>().refreshStatus();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final tp = context.read<TherapistProvider>();
+      await tp.refreshStatus();
+      if (!mounted) return;
+      if (tp.connection.canUseTherapistChat) {
+        await tp.refreshMessages(signalNewTherapistReply: false);
+        if (mounted) await tp.markTherapistHubViewed();
+      }
     });
   }
 

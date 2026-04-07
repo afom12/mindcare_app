@@ -179,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _QuickTile(
                       icon: Icons.edit_note_rounded,
                       label: 'Log Mood',
-                      color: AppColors.sky,
+                      color: AppColors.slateSecondary,
                       onTap: () => context.read<MainShellController>().goMood(),
                     ),
                   ),
@@ -203,7 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _QuickTile(
                       icon: Icons.insights_rounded,
                       label: 'Insights',
-                      color: AppColors.sky,
+                      color: AppColors.amber,
                       onTap: () => context.read<MainShellController>().goInsights(),
                     ),
                   ),
@@ -272,8 +272,8 @@ class _HeroCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(26),
             gradient: LinearGradient(
               colors: [
-                AppColors.teal.withValues(alpha: 0.85),
-                AppColors.sky.withValues(alpha: 0.75),
+                AppColors.teal,
+                AppColors.tealDark,
               ],
             ),
             boxShadow: [

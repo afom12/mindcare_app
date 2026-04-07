@@ -50,6 +50,20 @@ class AuthService {
     return AuthResult(token: token, user: _extractUser(res));
   }
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _api.postJson(
+      '/auth/change-password',
+      {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      },
+      auth: true,
+    );
+  }
+
   Future<AuthResult> login({
     required String email,
     required String password,

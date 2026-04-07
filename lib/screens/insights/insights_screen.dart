@@ -149,7 +149,7 @@ class InsightsScreen extends StatelessWidget {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.sky),
+                              const Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.amber),
                               const SizedBox(width: 8),
                               Expanded(child: Text(p, style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.4))),
                             ],

@@ -6,6 +6,10 @@ This document defines the **student-app ↔ backend** contract for therapist fea
 Base path prefix (existing app): `/api/v1`  
 All endpoints below assume JWT auth: `Authorization: Bearer <token>` unless noted.
 
+**Flutter path prefix:** By default the app calls `…/api/v1/therapist/request` (and `/therapist/status`, etc.). If your server nests student routes (e.g. `…/api/v1/student/therapist/request`), run with:
+
+`flutter run --dart-define=THERAPIST_PATH_PREFIX=/student/therapist`
+
 ---
 
 ## 1. User roles

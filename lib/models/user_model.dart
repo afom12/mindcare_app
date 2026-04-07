@@ -10,9 +10,11 @@ class UserModel {
   final String? name;
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    final rawId = (json['id'] ?? json['_id'] ?? json['userId'] ?? '').toString();
+    final email = (json['email'] ?? '').toString();
     return UserModel(
-      id: (json['id'] ?? json['_id'] ?? json['userId'] ?? '').toString(),
-      email: (json['email'] ?? '').toString(),
+      id: rawId.isNotEmpty ? rawId : (email.isNotEmpty ? email : 'session'),
+      email: email,
       name: json['name'] as String? ?? json['fullName'] as String?,
     );
   }

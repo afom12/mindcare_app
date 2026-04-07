@@ -11,6 +11,10 @@ class ApiClient {
 
   final SecureStorageService _storage;
 
+  /// Called when a request used [auth] and the server returned 401.
+  /// Use to clear session and navigate to login (avoid for unauthenticated calls).
+  void Function()? onUnauthorized;
+
   Uri _uri(String path) => Uri.parse('${ApiConstants.baseUrl}$path');
 
   Future<Map<String, String>> _headers({bool auth = false}) async {
@@ -45,7 +49,7 @@ class ApiClient {
           )
           .timeout(ApiConstants.receiveTimeout);
 
-      return _decode(response);
+      return _decode(response, usedAuth: auth);
     } on ApiException {
       rethrow;
     } catch (e) {
@@ -72,7 +76,7 @@ class ApiClient {
           )
           .timeout(ApiConstants.receiveTimeout);
 
-      return _decode(response);
+      return _decode(response, usedAuth: auth);
     } on ApiException {
       rethrow;
     } catch (e) {
@@ -84,7 +88,7 @@ class ApiClient {
     }
   }
 
-  Map<String, dynamic> _decode(http.Response response) {
+  Map<String, dynamic> _decode(http.Response response, {required bool usedAuth}) {
     final raw = response.body;
     Map<String, dynamic>? jsonBody;
     if (raw.isNotEmpty) {
@@ -100,6 +104,10 @@ class ApiClient {
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return jsonBody ?? <String, dynamic>{};
+    }
+
+    if (response.statusCode == 401 && usedAuth) {
+      onUnauthorized?.call();
     }
 
     final message = _extractError(jsonBody) ??

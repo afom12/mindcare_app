@@ -7,6 +7,7 @@ import '../models/user_model.dart';
 import '../services/api_exception.dart';
 import '../services/auth_service.dart';
 import '../services/secure_storage_service.dart';
+import '../services/therapist_inbox_prefs.dart';
 
 enum AuthStatus { unknown, unauthenticated, authenticated }
 
@@ -91,6 +92,22 @@ class AuthProvider extends ChangeNotifier {
     await _storage.writeUserJson(jsonEncode(_user!.toJson()));
   }
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    _error = null;
+    try {
+      await _authService.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+    } on ApiException catch (e) {
+      _error = e.message;
+      rethrow;
+    }
+  }
+
   Future<void> updateLocalName(String name) async {
     if (_user == null) return;
     final next = _user!.copyWith(name: name);
@@ -100,6 +117,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    await TherapistInboxPrefs().clear();
     await _storage.clearSession();
     _user = null;
     _status = AuthStatus.unauthenticated;

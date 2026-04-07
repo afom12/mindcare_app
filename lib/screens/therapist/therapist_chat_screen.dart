@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -21,17 +23,31 @@ class TherapistChatScreen extends StatefulWidget {
 class _TherapistChatScreenState extends State<TherapistChatScreen> {
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
+  Timer? _poll;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<TherapistProvider>().refreshMessages();
+      _startPolling();
+    });
+  }
+
+  void _startPolling() {
+    _poll?.cancel();
+    _poll = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted) return;
+      final tp = context.read<TherapistProvider>();
+      if (tp.connection.canUseTherapistChat) {
+        tp.refreshMessages();
+      }
     });
   }
 
   @override
   void dispose() {
+    _poll?.cancel();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -63,14 +79,16 @@ class _TherapistChatScreenState extends State<TherapistChatScreen> {
       }
       return;
     }
+    final toSend = text;
     _input.clear();
-    await tp.sendTherapistMessage(text);
+    await tp.sendTherapistMessage(toSend);
     _scrollBottom();
   }
 
   @override
   Widget build(BuildContext context) {
     final tp = context.watch<TherapistProvider>();
+    final thread = tp.threadMessages;
 
     if (!tp.connection.canUseTherapistChat) {
       return const SizedBox.shrink();
@@ -84,7 +102,7 @@ class _TherapistChatScreenState extends State<TherapistChatScreen> {
         if (tp.messagesLoading)
           const LinearProgressIndicator(minHeight: 2),
         Expanded(
-          child: tp.messages.isEmpty
+          child: thread.isEmpty
               ? const EmptyState(
                   title: 'No messages yet',
                   subtitle:
@@ -94,13 +112,18 @@ class _TherapistChatScreenState extends State<TherapistChatScreen> {
               : ListView.separated(
                   controller: _scroll,
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                  itemCount: tp.messages.length,
+                  itemCount: thread.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, i) {
-                    final m = tp.messages[i];
+                    final m = thread[i];
                     return FadeIn(
                       delay: Duration(milliseconds: 20 * i.clamp(0, 12)),
-                      child: _TherapistBubble(message: m),
+                      child: _TherapistBubble(
+                        message: m,
+                        onRetry: m.delivery == TherapistMessageDelivery.failed
+                            ? () => context.read<TherapistProvider>().retryOptimisticMessage(m.id)
+                            : null,
+                      ),
                     );
                   },
                 ),
@@ -124,14 +147,20 @@ class _TherapistChatScreenState extends State<TherapistChatScreen> {
 }
 
 class _TherapistBubble extends StatelessWidget {
-  const _TherapistBubble({required this.message});
+  const _TherapistBubble({
+    required this.message,
+    this.onRetry,
+  });
 
   final TherapistThreadMessage message;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     final fromMe = message.isFromStudent;
     final time = DateFormat.jm().format(message.timestamp);
+    final pending = message.delivery == TherapistMessageDelivery.pending;
+    final failed = message.delivery == TherapistMessageDelivery.failed;
     return Align(
       alignment: fromMe ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
@@ -148,7 +177,9 @@ class _TherapistBubble extends StatelessWidget {
               bottomRight: Radius.circular(fromMe ? 4 : 18),
             ),
             border: Border.all(
-              color: fromMe ? Colors.transparent : AppColors.line.withValues(alpha: 0.6),
+              color: failed
+                  ? AppColors.error.withValues(alpha: 0.6)
+                  : (fromMe ? Colors.transparent : AppColors.line.withValues(alpha: 0.6)),
             ),
           ),
           child: Padding(
@@ -164,11 +195,40 @@ class _TherapistBubble extends StatelessWidget {
                       ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  time,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: fromMe ? Colors.white70 : AppColors.inkMuted,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      time,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: fromMe ? Colors.white70 : AppColors.inkMuted,
+                          ),
+                    ),
+                    if (pending) ...[
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          color: fromMe ? Colors.white70 : AppColors.teal,
+                        ),
                       ),
+                    ],
+                    if (failed && onRetry != null) ...[
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: onRetry,
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          foregroundColor: fromMe ? Colors.white : AppColors.error,
+                        ),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -213,20 +273,24 @@ class _TherapistInputBar extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            FilledButton(
-              onPressed: sending ? null : onSend,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.teal,
-                shape: const CircleBorder(),
-                padding: const EdgeInsets.all(12),
+            Semantics(
+              label: 'Send message to therapist',
+              button: true,
+              child: FilledButton(
+                onPressed: sending ? null : onSend,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.teal,
+                  shape: const CircleBorder(),
+                  padding: const EdgeInsets.all(12),
+                ),
+                child: sending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.send_rounded, color: Colors.white, size: 20),
               ),
-              child: sending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.send_rounded, color: Colors.white, size: 20),
             ),
           ],
         ),

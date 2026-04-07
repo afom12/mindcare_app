@@ -17,14 +17,14 @@ class GradientBackground extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colors = isDark
         ? const [
-            Color(0xFF0F1719),
-            Color(0xFF152428),
-            Color(0xFF1A2E32),
+            Color(0xFF0F172A),
+            Color(0xFF1E293B),
+            Color(0xFF0F172A),
           ]
         : const [
-            Color(0xFFF5FAFB),
-            Color(0xFFE8F6F4),
-            Color(0xFFE8F4FF),
+            AppColors.mist,
+            AppColors.cloud,
+            AppColors.skySoft,
           ];
     return DecoratedBox(
       decoration: BoxDecoration(

@@ -67,6 +67,13 @@ class TherapistConnectionState {
   }
 }
 
+/// Optimistic send lifecycle for the student app (server messages use [sent]).
+enum TherapistMessageDelivery {
+  sent,
+  pending,
+  failed,
+}
+
 /// Human therapist ↔ student message (separate from AI chat).
 class TherapistThreadMessage {
   TherapistThreadMessage({
@@ -76,6 +83,7 @@ class TherapistThreadMessage {
     required this.message,
     required this.timestamp,
     required this.isFromStudent,
+    this.delivery = TherapistMessageDelivery.sent,
   });
 
   final String id;
@@ -84,6 +92,9 @@ class TherapistThreadMessage {
   final String message;
   final DateTime timestamp;
   final bool isFromStudent;
+  final TherapistMessageDelivery delivery;
+
+  bool get isOptimistic => delivery != TherapistMessageDelivery.sent;
 
   factory TherapistThreadMessage.fromJson(Map<String, dynamic> json, {required String currentUserId}) {
     final sid = (json['senderId'] ?? json['sender_id'] ?? '').toString();
@@ -98,6 +109,24 @@ class TherapistThreadMessage {
           ? (DateTime.tryParse(ts) ?? DateTime.now())
           : DateTime.now(),
       isFromStudent: sid == currentUserId,
+      delivery: TherapistMessageDelivery.sent,
+    );
+  }
+
+  factory TherapistThreadMessage.optimistic({
+    required String id,
+    required String text,
+    required String currentUserId,
+    required TherapistMessageDelivery delivery,
+  }) {
+    return TherapistThreadMessage(
+      id: id,
+      senderId: currentUserId,
+      receiverId: '',
+      message: text,
+      timestamp: DateTime.now(),
+      isFromStudent: true,
+      delivery: delivery,
     );
   }
 }
